@@ -279,21 +279,35 @@ button, input, select { font: inherit; }
 </head>
 <body>
   <div id="auth-overlay">
-    <div class="auth-card" id="auth-form-container">
+    <form class="auth-card" id="auth-form-container">
       <div class="brand-mark" style="margin-bottom: 15px;">PP</div>
       <h2 id="auth-title">Login to ParkPilot</h2>
       <div id="auth-error" class="auth-error" hidden></div>
       <div class="form-group" style="margin-bottom: 15px;">
         <label class="form-label" for="auth-email">Email Address</label>
-        <input type="email" id="auth-email" class="form-input" placeholder="user@example.com">
+       <input 
+      type="email" 
+      id="auth-email" 
+      name="email"
+      class="form-input" 
+      placeholder="user@example.com"
+      autocomplete="email">
       </div>
       <div class="form-group" style="margin-bottom: 15px;">
         <label class="form-label" for="auth-password">Password</label>
-        <input type="password" id="auth-password" class="form-input" placeholder="Enter password">
+        <input 
+      type="password" 
+      id="auth-password" 
+      name="password"
+      class="form-input" 
+      placeholder="Enter password"
+      autocomplete="current-password">
       </div>
-      <button class="btn btn-primary btn-block" id="auth-submit-btn" type="button">Login</button>
+      <button class="btn btn-primary btn-block" id="auth-submit-btn" type="submit">
+      Login
+     </button>
       <button class="auth-toggle" id="auth-toggle-btn" type="button">Need an account? Sign Up</button>
-    </div>
+    </form>
   </div>
 
   <div class="mobile-topbar">
@@ -528,12 +542,18 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function bindUI() {
-  document.getElementById("auth-submit-btn").addEventListener("click", handleAuthForm);
   document.getElementById("auth-toggle-btn").addEventListener("click", toggleAuthMode);
   document.getElementById("logout-btn").addEventListener("click", logoutUser);
   document.getElementById("add-slot-btn").addEventListener("click", addDevice);
   document.getElementById("dashboard-location-select").addEventListener("change", handleLocationChange);
-  
+
+  // ✅ ADD THIS HERE
+  document.getElementById("auth-form-container")
+    .addEventListener("submit", (e) => {
+      e.preventDefault();
+      handleAuthForm();
+    });
+
   document.querySelectorAll(".nav-link[data-page]").forEach((link) => {
     link.addEventListener("click", () => showPage(link.dataset.page));
   });
@@ -566,6 +586,12 @@ function handleAuthForm() {
     return;
   }
 
+  // ✅ ADD THIS (only for signup)
+  if (!APP_STATE.isLoginMode && pass.length < 8) {
+    showAuthError("Password must be at least 8 characters long.");
+    return;
+  }
+
   if (APP_STATE.isLoginMode) {
     // LOGIN
     signInWithEmailAndPassword(auth, email, pass)
@@ -574,7 +600,7 @@ function handleAuthForm() {
         hydrateUI();
         initMQTT();
       })
-      .catch(err => showAuthError(err.message));
+      .catch(err => handleAuthError(err));
   } else {
     // SIGN UP
     createUserWithEmailAndPassword(auth, email, pass)
@@ -583,15 +609,60 @@ function handleAuthForm() {
         hydrateUI();
         initMQTT();
       })
-      .catch(err => showAuthError(err.message));
+      .catch(err => handleAuthError(err));
   }
 }
 
+  function handleAuthError(err) {
+  let msg = "Login failed. Please try again.";
+
+  switch (err.code) {
+    case "auth/invalid-credential":
+    case "auth/wrong-password":
+    case "auth/user-not-found":
+      msg = "Incorrect email or password.";
+      break;
+
+    case "auth/email-already-in-use":
+      msg = "Email already exists. Please login.";
+      break;
+
+    case "auth/invalid-email":
+      msg = "Invalid email format.";
+      break;
+
+    case "auth/too-many-requests":
+      msg = "Too many attempts. Try again later.";
+      break;
+
+    default:
+      msg = "Something went wrong. Please try again.";
+  }
+
+  showAuthError(msg);
+}
+  
 function toggleAuthMode() {
   APP_STATE.isLoginMode = !APP_STATE.isLoginMode;
-  document.getElementById("auth-title").textContent = APP_STATE.isLoginMode ? "Login to ParkPilot" : "Create Account";
-  document.getElementById("auth-submit-btn").textContent = APP_STATE.isLoginMode ? "Login" : "Sign Up";
-  document.getElementById("auth-toggle-btn").textContent = APP_STATE.isLoginMode ? "Need an account? Sign Up" : "Already have an account? Login";
+
+  document.getElementById("auth-title").textContent =
+    APP_STATE.isLoginMode ? "Login to ParkPilot" : "Create Account";
+
+  document.getElementById("auth-submit-btn").textContent =
+    APP_STATE.isLoginMode ? "Login" : "Sign Up";
+
+  document.getElementById("auth-toggle-btn").textContent =
+    APP_STATE.isLoginMode
+      ? "Need an account? Sign Up"
+      : "Already have an account? Login";
+
+  // ✅ THIS PART IS KEY
+  const passwordInput = document.getElementById("auth-password");
+  passwordInput.setAttribute(
+    "autocomplete",
+    APP_STATE.isLoginMode ? "current-password" : "new-password"
+  );
+
   document.getElementById("auth-error").hidden = true;
 }
 
