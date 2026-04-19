@@ -249,12 +249,12 @@ button, input, select { font: inherit; }
 .mobile-topbar { display: none; }
 .sidebar-overlay { display: none; }
 
-/* Auth Loading Animation - Fixed Car Visibility */
+/* Auth Loading Animation - Single Car Driving Forward */
 @keyframes driveAcross {
-    0% { transform: translateX(-150px); opacity: 0; }
+    0% { transform: translateX(-120px); opacity: 0; }
     10% { opacity: 1; }
     90% { opacity: 1; }
-    100% { transform: translateX(150px); opacity: 0; }
+    100% { transform: translateX(120px); opacity: 0; }
 }
 
 @keyframes roadLines {
@@ -275,7 +275,7 @@ button, input, select { font: inherit; }
 .car-loading-animation {
     position: relative;
     height: 90px;
-    overflow: visible;
+    overflow: hidden;
     margin-bottom: 20px;
 }
 
@@ -293,20 +293,14 @@ button, input, select { font: inherit; }
     position: absolute;
     left: 0;
     top: 0;
-    animation: driveAcross 2s ease-in-out infinite;
+    animation: driveAcross 2.2s ease-in-out infinite;
     filter: drop-shadow(2px 4px 8px rgba(0,0,0,0.15));
-    background: transparent;
     color: var(--brand);
-    text-shadow: 0 2px 4px rgba(0,0,0,0.1);
     width: 70px;
     text-align: center;
     line-height: 1;
-}
-
-/* Fallback: if emoji fails, show a simple car shape using pseudo-element */
-.loading-car::before {
-    content: "🚗";
-    visibility: visible;
+    /* Ensure car faces right (default emoji is right-facing, but just in case) */
+    transform: scaleX(1);
 }
 
 .loading-road {
