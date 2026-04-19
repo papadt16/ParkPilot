@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ParkPilot Live</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<style>
+:root {
+  --bg: #eef2f2;
+  --surface: #ffffff;
+  --surface-soft: #f7faf9;
+  --border: #d8e1df;
+  --text: #182226;
+  --muted: #617076;
+  --brand: #143642;
+  --brand-strong: #0f2931;
+  --brand-soft: #dce9e6;
+  --accent: #2f9e44;
+  --accent-soft: #d9f3df;
+  --danger: #d94841;
+  --danger-soft: #f8ddda;
+  --offline: #7a838d;
+  --offline-soft: #e8ecf0;
+  --warning: #d98f12;
+  --shadow: 0 18px 50px rgba(20, 54, 66, 0.09);
+  --shadow-soft: 0 10px 22px rgba(20, 54, 66, 0.08);
+  --radius: 22px;
+  --transition: 180ms ease;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; min-height: 100%; }
+
+body {
+  font-family: "Manrope", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at top right, rgba(47, 158, 68, 0.11), transparent 28%),
+    linear-gradient(180deg, #f6faf9 0%, var(--bg) 45%, #ebf1f0 100%);
+  color: var(--text);
+}
+
+button, input, select { font: inherit; }
+
+[hidden] { display: none !important; }
+
+.app-shell { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 100vh; }
+
+.sidebar {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent),
+    linear-gradient(180deg, var(--brand) 0%, var(--brand-strong) 100%);
+  color: #f8fffd;
+  padding: 28px 20px;
+  position: relative;
+  box-shadow: 8px 0 28px rgba(15, 41, 49, 0.12);
+}
+
+.brand {
+  display: flex; align-items: center; gap: 14px; padding-bottom: 22px;
+  margin-bottom: 22px; border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.brand-mark {
+  width: 48px; height: 48px; border-radius: 16px; display: grid; place-items: center;
+  font-weight: 800; letter-spacing: 0.08em; background: linear-gradient(135deg, #dff6d9 0%, #7bdf8d 100%);
+  color: #123120;
+}
+
+.brand-title { font-size: 1.15rem; font-weight: 800; }
+.brand-subtitle { font-size: 0.88rem; color: rgba(248, 255, 253, 0.68); }
+
+.nav-menu { display: grid; gap: 8px; }
+
+.nav-link {
+  border: 0; text-align: left; display: flex; align-items: center; gap: 12px;
+  width: 100%; background: transparent; color: rgba(248, 255, 253, 0.76);
+  padding: 14px 16px; border-radius: 16px; cursor: pointer;
+  transition: background var(--transition), color var(--transition), transform var(--transition);
+}
+
+.nav-link:hover, .nav-link.active {
+  background: rgba(255, 255, 255, 0.1); color: #ffffff; transform: translateX(2px);
+}
+
+.nav-link-danger { margin-top: 12px; color: #ffd5d2; }
+.nav-icon { width: 10px; height: 10px; border-radius: 999px; background: currentColor; opacity: 0.9; }
+
+.main-content { padding: 30px; }
+.page-section { display: none; }
+.page-section.active { display: block; }
+
+.page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 24px; }
+.page-title { margin: 0; font-size: clamp(1.8rem, 2vw, 2.4rem); line-height: 1.1; }
+.page-subtitle, .card-subtitle, .spotlight-copy { margin: 8px 0 0; color: var(--muted); }
+
+.header-stack { display: grid; gap: 10px; }
+
+.status-chip {
+  display: inline-flex; align-items: center; gap: 8px; border-radius: 999px;
+  padding: 11px 14px; background: rgba(20, 54, 66, 0.08); color: var(--brand); font-weight: 700;
+}
+.status-chip::before { content: ""; width: 10px; height: 10px; border-radius: 999px; background: currentColor; }
+.status-chip-light { font-weight: 600; color: var(--muted); }
+
+.card {
+  background: rgba(255, 255, 255, 0.92); backdrop-filter: blur(12px);
+  border: 1px solid rgba(216, 225, 223, 0.85); border-radius: var(--radius);
+  box-shadow: var(--shadow-soft); padding: 24px;
+}
+
+.spotlight-card {
+  display: flex; justify-content: space-between; gap: 20px; align-items: end;
+  margin-bottom: 20px;
+  background: radial-gradient(circle at right top, rgba(47, 158, 68, 0.18), transparent 35%),
+              linear-gradient(145deg, #ffffff 0%, #f4faf7 100%);
+}
+
+.eyebrow {
+  margin: 0 0 8px; font-size: 0.85rem; font-weight: 800; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--accent);
+}
+
+.spotlight-card h2, .card-title { margin: 0; }
+.spotlight-actions { display: flex; align-items: end; gap: 14px; flex-wrap: wrap; justify-content: flex-end; }
+
+.metric-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 18px; margin-bottom: 20px; }
+.metric-card { padding: 20px; }
+.metric-label { color: var(--muted); font-size: 0.95rem; }
+.metric-value { margin-top: 10px; font-size: clamp(1.8rem, 2.1vw, 2.4rem); font-weight: 800; color: var(--brand); }
+.metric-free { color: var(--accent); }
+.metric-occupied { color: var(--danger); }
+.metric-offline { color: var(--offline); }
+
+.card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
+
+.page-nav { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 18px; }
+.page-nav:empty { display: none; }
+.page-nav-button {
+  border: 1px solid var(--border); background: #ffffff; color: var(--brand);
+  min-width: 42px; padding: 10px 12px; border-radius: 12px; cursor: pointer;
+  font-weight: 700; transition: all var(--transition);
+}
+.page-nav-button:hover, .page-nav-button.active { border-color: transparent; background: var(--brand); color: #ffffff; }
+
+/* RE-IMPLEMENTED 10x4 RESPONSIVE GRID */
+.parking-grid { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 12px; }
+
+.parking-slot {
+  border-radius: 18px; overflow: hidden; border: 1px solid transparent;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+.parking-slot:hover { transform: translateY(-2px); box-shadow: 0 14px 28px rgba(20, 54, 66, 0.12); }
+
+.parking-slot.free { background: linear-gradient(180deg, var(--accent-soft) 0%, #ffffff 100%); border-color: rgba(47, 158, 68, 0.18); }
+.parking-slot.occupied { background: linear-gradient(180deg, var(--danger-soft) 0%, #ffffff 100%); border-color: rgba(217, 72, 65, 0.18); }
+.parking-slot.offline { background: linear-gradient(180deg, var(--offline-soft) 0%, #ffffff 100%); border-color: rgba(122, 131, 141, 0.18); }
+
+.slot-visual { position: relative; height: 104px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.slot-visual::before, .slot-visual::after { content: ""; position: absolute; top: 14px; bottom: 14px; width: 3px; border-radius: 999px; background: rgba(255, 255, 255, 0.75); }
+.slot-visual::before { left: 18px; }
+.slot-visual::after { right: 18px; }
+
+.parking-slot.free .slot-visual { background: linear-gradient(180deg, #67c77a 0%, #36a653 100%); }
+.parking-slot.occupied .slot-visual { background: linear-gradient(180deg, #ef7168 0%, #d94841 100%); }
+.parking-slot.offline .slot-visual { background: linear-gradient(180deg, #9ba5ae 0%, #7a838d 100%); }
+
+.car-shape {
+  width: 52px; height: 28px; border-radius: 15px 15px 12px 12px;
+  background: rgba(255, 255, 255, 0.92); position: relative;
+  box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.08);
+}
+.car-shape::before { content: ""; position: absolute; inset: 6px 11px 8px; border-radius: 8px; background: rgba(20, 54, 66, 0.16); }
+.car-shape::after { content: ""; position: absolute; left: 7px; right: 7px; bottom: -8px; height: 8px; border-radius: 999px; background: rgba(0, 0, 0, 0.13); }
+
+.slot-body { padding: 14px; }
+.slot-name { font-weight: 800; font-size: 0.95rem; }
+.slot-meta { color: var(--muted); font-size: 0.78rem; margin-top: 6px; line-height: 1.35; }
+.slot-status {
+  display: inline-flex; align-items: center; gap: 8px; margin-top: 12px;
+  border-radius: 999px; padding: 8px 10px; font-size: 0.8rem; font-weight: 800; text-transform: uppercase;
+}
+.slot-status::before { content: ""; width: 8px; height: 8px; border-radius: 999px; background: currentColor; }
+.slot-status.free { color: #19793a; background: rgba(25, 121, 58, 0.12); }
+.slot-status.occupied { color: #a62f29; background: rgba(166, 47, 41, 0.12); }
+.slot-status.offline { color: #5e6670; background: rgba(94, 102, 112, 0.12); }
+
+.device-layout { display: grid; grid-template-columns: 1.6fr 1fr; gap: 20px; margin-bottom: 20px; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.form-group { display: grid; gap: 8px; }
+.form-group.inline-field { min-width: 220px; }
+.form-label { font-size: 0.92rem; font-weight: 700; color: var(--brand); }
+
+.form-input {
+  width: 100%; border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px;
+  background: #ffffff; color: var(--text); transition: border-color var(--transition), box-shadow var(--transition);
+}
+.form-input:focus { outline: none; border-color: rgba(20, 54, 66, 0.45); box-shadow: 0 0 0 4px rgba(20, 54, 66, 0.08); }
+
+.button-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+.btn {
+  border: 0; border-radius: 14px; padding: 12px 18px; cursor: pointer; font-weight: 800;
+  transition: transform var(--transition), box-shadow var(--transition), opacity var(--transition);
+}
+.btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-soft); }
+.btn:disabled { opacity: 0.65; cursor: default; transform: none; box-shadow: none; }
+.btn-primary { color: #ffffff; background: linear-gradient(135deg, var(--brand) 0%, #205261 100%); }
+.btn-secondary { color: var(--brand); background: var(--brand-soft); }
+.btn-danger { color: #ffffff; background: var(--danger); }
+.btn-soft { color: var(--brand); background: rgba(20, 54, 66, 0.08); }
+
+.devices-list-container { display: grid; gap: 14px; }
+.location-group { border: 1px solid var(--border); border-radius: 18px; overflow: hidden; background: #ffffff; }
+.location-header {
+  width: 100%; border: 0; background: linear-gradient(180deg, #fcfffe 0%, #f0f6f4 100%);
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 16px 18px;
+  cursor: pointer; font-weight: 800; color: var(--brand);
+}
+.location-header:hover { background: linear-gradient(180deg, #f6fbf9 0%, #e8f1ee 100%); }
+.location-arrow { transition: transform var(--transition); }
+.location-group.open .location-arrow { transform: rotate(180deg); }
+.location-content { display: none; padding: 0 18px 18px; }
+.location-group.open .location-content { display: block; }
+.device-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center;
+  padding: 16px 0; border-top: 1px solid var(--border);
+}
+.device-row:first-child { border-top: 0; }
+.device-name { font-weight: 800; }
+.device-meta { color: var(--muted); font-size: 0.9rem; margin-top: 6px; line-height: 1.45; }
+.device-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+.alert { border-radius: 16px; padding: 14px 16px; margin-bottom: 18px; font-weight: 700; }
+.alert.success { background: var(--accent-soft); color: #196d35; border: 1px solid rgba(47, 158, 68, 0.25); }
+.alert.danger { background: var(--danger-soft); color: #932923; border: 1px solid rgba(217, 72, 65, 0.25); }
+.alert.warning { background: #fdeecf; color: #85550d; border: 1px solid rgba(217, 143, 18, 0.24); }
+
+.empty-state { text-align: center; color: var(--muted); padding: 36px 14px; }
+
+/* AUTH STYLES */
+#auth-overlay { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(circle at 18% 18%, rgba(47, 158, 68, 0.18), transparent 28%), linear-gradient(180deg, #f7fbfa 0%, #e8efee 100%); z-index: 1000; }
+.auth-loading, .auth-card { width: min(430px, calc(100vw - 32px)); border-radius: 28px; box-shadow: var(--shadow); background: #ffffff; padding: 34px 30px; }
+.auth-error { margin-bottom: 14px; border-radius: 14px; padding: 12px 14px; background: var(--danger-soft); color: #932923; }
+.auth-toggle { border: 0; background: transparent; color: var(--brand); cursor: pointer; font-weight: 800; margin-top: 14px; text-align: center; width: 100%;}
+.mobile-topbar { display: none; }
+.sidebar-overlay { display: none; }
+
+/* RESPONSIVE MEDIA QUERIES */
+@media (max-width: 1400px) {
+  .parking-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  .metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 1180px) {
+  .parking-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .device-layout { grid-template-columns: 1fr; }
+  .spotlight-card { flex-direction: column; align-items: flex-start; }
+}
+@media (max-width: 980px) {
+  .app-shell { grid-template-columns: 1fr; }
+  .mobile-topbar { display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 30; padding: 14px 16px; background: rgba(247, 251, 250, 0.92); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(216, 225, 223, 0.8); }
+  .mobile-title { font-weight: 800; color: var(--brand); }
+  .sidebar { position: fixed; inset: 0 auto 0 0; width: min(290px, 82vw); transform: translateX(-100%); transition: transform var(--transition); z-index: 40; }
+  body.sidebar-open .sidebar { transform: translateX(0); }
+  .sidebar-overlay { position: fixed; inset: 0; background: rgba(8, 18, 22, 0.42); z-index: 35; }
+  body.sidebar-open .sidebar-overlay { display: block; }
+  .main-content { padding: 22px 16px 28px; }
+  .metric-grid, .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .parking-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .metric-grid, .form-grid { grid-template-columns: 1fr; }
+  .parking-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .device-row { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+  <div id="auth-overlay">
+    <div class="auth-card" id="auth-form-container">
+      <div class="brand-mark" style="margin-bottom: 15px;">PP</div>
+      <h2 id="auth-title">Login to ParkPilot</h2>
+      <div id="auth-error" class="auth-error" hidden></div>
+      <div class="form-group" style="margin-bottom: 15px;">
+        <label class="form-label" for="auth-email">Email Address</label>
+        <input type="email" id="auth-email" class="form-input" placeholder="user@example.com">
+      </div>
+      <div class="form-group" style="margin-bottom: 15px;">
+        <label class="form-label" for="auth-password">Password</label>
+        <input type="password" id="auth-password" class="form-input" placeholder="Enter password">
+      </div>
+      <button class="btn btn-primary btn-block" id="auth-submit-btn" type="button">Login</button>
+      <button class="auth-toggle" id="auth-toggle-btn" type="button">Need an account? Sign Up</button>
+    </div>
+  </div>
+
+  <div class="mobile-topbar">
+    <button class="btn btn-soft" id="sidebar-toggle" type="button" aria-label="Toggle menu" style="padding: 6px 12px;">☰</button>
+    <div class="mobile-title">ParkPilot</div>
+  </div>
+  <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">PP</div>
+        <div>
+          <div class="brand-title">ParkPilot</div>
+          <div class="brand-subtitle">Smart Parking Control</div>
+        </div>
+      </div>
+      <nav class="nav-menu">
+        <button class="nav-link active" type="button" data-page="dashboard">
+          <span>📊 Dashboard</span>
+        </button>
+        <button class="nav-link" type="button" data-page="devices">
+          <span>🔌 Devices</span>
+        </button>
+        <button class="nav-link nav-link-danger" type="button" id="logout-btn">
+          <span>🚪 Logout</span>
+        </button>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <section id="dashboard-section" class="page-section active">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Parking Dashboard</h1>
+            <p class="page-subtitle">Monitor parking slots across locations with live-ready status states.</p>
+          </div>
+          <div class="header-stack">
+            <div class="status-chip" id="connection-chip">Connecting to MQTT...</div>
+            <div class="status-chip status-chip-light" id="last-updated-chip">Waiting for data...</div>
+          </div>
+        </div>
+
+        <div class="card spotlight-card">
+          <div>
+            <p class="eyebrow">Location View</p>
+            <h2 id="location-title">No location selected</h2>
+            <p id="location-summary" class="spotlight-copy">Add a location and a few parking slots from the device page.</p>
+          </div>
+          <div class="spotlight-actions">
+            <div class="form-group inline-field">
+              <label class="form-label" for="dashboard-location-select">Location Filter</label>
+              <select id="dashboard-location-select" class="form-input"></select>
+            </div>
+          </div>
+        </div>
+
+        <div class="metric-grid">
+          <article class="card metric-card">
+            <div class="metric-label">Total Slots</div>
+            <div class="metric-value" id="metric-total">0</div>
+          </article>
+          <article class="card metric-card">
+            <div class="metric-label">Free</div>
+            <div class="metric-value metric-free" id="metric-free">0</div>
+          </article>
+          <article class="card metric-card">
+            <div class="metric-label">Occupied</div>
+            <div class="metric-value metric-occupied" id="metric-occupied">0</div>
+          </article>
+          <article class="card metric-card">
+            <div class="metric-label">Offline</div>
+            <div class="metric-value metric-offline" id="metric-offline">0</div>
+          </article>
+          <article class="card metric-card">
+            <div class="metric-label">Occupancy Rate</div>
+            <div class="metric-value" id="metric-rate">0%</div>
+          </article>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Parking Slots</h3>
+              <p class="card-subtitle">Grid layouts display real-time availability from your ESP32 sensors.</p>
+            </div>
+          </div>
+          <div id="page-nav-top" class="page-nav"></div>
+          <div id="parking-grid" class="parking-grid"></div>
+          <div id="page-nav-bottom" class="page-nav"></div>
+        </div>
+      </section>
+
+      <section id="devices-section" class="page-section">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Device Manager</h1>
+            <p class="page-subtitle">Add parking slots by location using the IDs already programmed inside your ESP32 firmware.</p>
+          </div>
+        </div>
+
+        <div id="devices-alert" class="alert" hidden></div>
+
+        <div class="device-layout">
+          <article class="card" style="grid-column: 1 / -1;">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title">Add Parking Slot</h3>
+                <p class="card-subtitle">Select an existing location or create a new one before saving a slot.</p>
+              </div>
+            </div>
+
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label" for="existing-location-select">Existing Location</label>
+                <select id="existing-location-select" class="form-input"></select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="new-location-input">Create New Location</label>
+                <input type="text" id="new-location-input" class="form-input" placeholder="Example: Admin Floor 1">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="controller-id-input">Controller ID</label>
+                <input type="text" id="controller-id-input" class="form-input" placeholder="Example: PARKSYS001">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="slot-id-input">Slot ID</label>
+                <input type="text" id="slot-id-input" class="form-input" placeholder="Example: KJHGFD2345">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="display-name-input">Custom Slot Name</label>
+                <input type="text" id="display-name-input" class="form-input" placeholder="Example: Visitor Bay A1">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="slot-number-input">Slot Number</label>
+                <input type="number" id="slot-number-input" class="form-input" min="1" step="1" placeholder="Optional">
+              </div>
+            </div>
+
+            <div class="button-row">
+              <button class="btn btn-primary" id="add-slot-btn" type="button">Add Slot</button>
+            </div>
+          </article>
+        </div>
+
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Saved Parking Slots</h3>
+              <p class="card-subtitle">Grouped by location, with quick actions for rename and remove.</p>
+            </div>
+          </div>
+          <div id="devices-list-container" class="devices-list-container"></div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+<script>
+// =====================================
+// APP CONFIGURATION & STORAGE
+// =====================================
+const APP_CONFIG = {
+  mqtt: {
+    enabled: true,
+    brokerUrl: "wss://broker.hivemq.com:8443/mqtt", // Standard secure public broker
+    username: "",
+    password: "",
+    rootTopic: "parking"
+  },
+  dashboard: {
+    pageSize: 40,
+    offlineAfterMs: 15000 // 15 Second Offline Heartbeat Check
+  }
+};
+
+const STORAGE_KEYS = {
+  devices: "parking_devices_v2",
+  uiState: "parking_ui_state_v2",
+  demoSession: "parking_local_auth"
+};
+
+const APP_STATE = {
+  isLoginMode: true,
+  currentPage: "dashboard",
+  selectedLocation: "",
+  currentGridPage: 1,
+  liveSlotData: {},
+  liveControllerSeen: {},
+  mqttClient: null
+};
+
+// =====================================
+// INITIALIZATION
+// =====================================
+document.addEventListener("DOMContentLoaded", () => {
+  bindUI();
+  handleAuthCheck();
+  
+  // Heartbeat Checker - Runs every 5 seconds to update offline states
+  setInterval(() => {
+    if (APP_STATE.currentPage === "dashboard") renderDashboard();
+    if (APP_STATE.currentPage === "devices") renderDevicesTable();
+  }, 5000);
+});
+
+function bindUI() {
+  document.getElementById("auth-submit-btn").addEventListener("click", handleAuthForm);
+  document.getElementById("auth-toggle-btn").addEventListener("click", toggleAuthMode);
+  document.getElementById("logout-btn").addEventListener("click", logoutUser);
+  document.getElementById("add-slot-btn").addEventListener("click", addDevice);
+  document.getElementById("dashboard-location-select").addEventListener("change", handleLocationChange);
+  
+  document.querySelectorAll(".nav-link[data-page]").forEach((link) => {
+    link.addEventListener("click", () => showPage(link.dataset.page));
+  });
+
+  document.getElementById("sidebar-toggle").addEventListener("click", toggleSidebar);
+  document.getElementById("sidebar-overlay").addEventListener("click", closeSidebar);
+}
+
+// =====================================
+// BASIC AUTHENTICATION (Local Storage Bypass)
+// =====================================
+function handleAuthCheck() {
+  const loggedIn = localStorage.getItem(STORAGE_KEYS.demoSession);
+  if (loggedIn) {
+    document.getElementById("auth-overlay").hidden = true;
+    hydrateUI();
+    initMQTT();
+  } else {
+    document.getElementById("auth-overlay").hidden = false;
+  }
+}
+
+function handleAuthForm() {
+  const email = document.getElementById("auth-email").value.trim();
+  const pass = document.getElementById("auth-password").value.trim();
+  if(!email || !pass) {
+    showAuthError("Please fill in both fields.");
+    return;
+  }
+  localStorage.setItem(STORAGE_KEYS.demoSession, "true");
+  handleAuthCheck();
+}
+
+function toggleAuthMode() {
+  APP_STATE.isLoginMode = !APP_STATE.isLoginMode;
+  document.getElementById("auth-title").textContent = APP_STATE.isLoginMode ? "Login to ParkPilot" : "Create Account";
+  document.getElementById("auth-submit-btn").textContent = APP_STATE.isLoginMode ? "Login" : "Sign Up";
+  document.getElementById("auth-toggle-btn").textContent = APP_STATE.isLoginMode ? "Need an account? Sign Up" : "Already have an account? Login";
+  document.getElementById("auth-error").hidden = true;
+}
+
+function logoutUser() {
+  localStorage.removeItem(STORAGE_KEYS.demoSession);
+  location.reload();
+}
+
+function showAuthError(msg) {
+  const err = document.getElementById("auth-error");
+  err.textContent = msg;
+  err.hidden = false;
+}
+
+// =====================================
+// UI LOGIC & NAVIGATION
+// =====================================
+function hydrateUI() {
+  const persisted = loadJson(STORAGE_KEYS.uiState, {});
+  APP_STATE.selectedLocation = persisted.selectedLocation || "";
+  APP_STATE.currentGridPage = persisted.currentGridPage || 1;
+  showPage(persisted.currentPage || "dashboard");
+  
+  renderLocationSelects();
+  renderDashboard();
+  renderDevicesTable();
+}
+
+function showPage(page) {
+  APP_STATE.currentPage = page;
+  document.querySelectorAll(".page-section").forEach(s => s.classList.toggle("active", s.id === `${page}-section`));
+  document.querySelectorAll(".nav-link[data-page]").forEach(l => l.classList.toggle("active", l.dataset.page === page));
+  saveUiState();
+  closeSidebar();
+}
+
+function handleLocationChange(e) {
+  APP_STATE.selectedLocation = e.target.value;
+  APP_STATE.currentGridPage = 1;
+  saveUiState();
+  renderDashboard();
+}
+
+function saveUiState() {
+  localStorage.setItem(STORAGE_KEYS.uiState, JSON.stringify({
+    selectedLocation: APP_STATE.selectedLocation,
+    currentGridPage: APP_STATE.currentGridPage,
+    currentPage: APP_STATE.currentPage
+  }));
+}
+
+// =====================================
+// DEVICE MANAGEMENT
+// =====================================
+function loadDevices() { return loadJson(STORAGE_KEYS.devices, []); }
+function saveDevices(devices) { localStorage.setItem(STORAGE_KEYS.devices, JSON.stringify(devices)); }
+function getLocations() { return [...new Set(loadDevices().map(d => d.location).filter(Boolean))]; }
+
+function renderLocationSelects() {
+  const locations = getLocations();
+  const dashSelect = document.getElementById("dashboard-location-select");
+  const formSelect = document.getElementById("existing-location-select");
+
+  dashSelect.innerHTML = "";
+  formSelect.innerHTML = '<option value="">Select an existing location</option>';
+
+  if (!locations.length) {
+    dashSelect.innerHTML = '<option value="">No locations added yet</option>';
+    return;
+  }
+
+  locations.forEach(loc => {
+    dashSelect.appendChild(new Option(loc, loc));
+    formSelect.appendChild(new Option(loc, loc));
+  });
+
+  if (!APP_STATE.selectedLocation || !locations.includes(APP_STATE.selectedLocation)) {
+    APP_STATE.selectedLocation = locations[0];
+  }
+  dashSelect.value = APP_STATE.selectedLocation;
+}
+
+function addDevice() {
+  const existLoc = document.getElementById("existing-location-select").value.trim();
+  const newLoc = document.getElementById("new-location-input").value.trim();
+  const controllerId = document.getElementById("controller-id-input").value.trim();
+  const slotId = document.getElementById("slot-id-input").value.trim();
+  const displayName = document.getElementById("display-name-input").value.trim();
+  const slotNum = document.getElementById("slot-number-input").value.trim();
+  const location = newLoc || existLoc;
+
+  if (!location) return showAlert("Location is required.", "danger");
+  if (!controllerId) return showAlert("Controller ID is required.", "danger");
+  if (!slotId) return showAlert("Slot ID is required.", "danger");
+  if (!displayName) return showAlert("Slot name is required.", "danger");
+
+  const devices = loadDevices();
+  if (devices.some(d => d.slotId === slotId)) return showAlert("Slot ID already exists.", "danger");
+
+  devices.push({ slotId, controllerId, displayName, location, slotNumber: slotNum ? Number(slotNum) : null });
+  saveDevices(devices);
+
+  document.getElementById("new-location-input").value = "";
+  document.getElementById("controller-id-input").value = "";
+  document.getElementById("slot-id-input").value = "";
+  document.getElementById("display-name-input").value = "";
+  document.getElementById("slot-number-input").value = "";
+
+  renderLocationSelects();
+  renderDashboard();
+  renderDevicesTable();
+  showAlert("Slot added successfully.", "success");
+}
+
+function removeDevice(slotId) {
+  if (!window.confirm("Remove this slot?")) return;
+  const devices = loadDevices().filter(d => d.slotId !== slotId);
+  saveDevices(devices);
+  renderLocationSelects();
+  renderDashboard();
+  renderDevicesTable();
+  showAlert("Slot removed.", "success");
+}
+
+function renameDevice(slotId) {
+  const devices = loadDevices();
+  const device = devices.find(d => d.slotId === slotId);
+  if (!device) return;
+  const nextName = window.prompt("Enter new name:", device.displayName);
+  if (!nextName || !nextName.trim()) return;
+  device.displayName = nextName.trim();
+  saveDevices(devices);
+  renderDashboard();
+  renderDevicesTable();
+}
+
+// =====================================
+// DASHBOARD RENDERING & CORE LOGIC
+// =====================================
+function resolveSlot(device) {
+  const liveSlot = APP_STATE.liveSlotData[device.slotId];
+  const controllerSeenAt = APP_STATE.liveControllerSeen[device.controllerId] || 0;
+  const now = Date.now();
+
+  // 1. Is the whole controller offline? (Haven't heard from it in 15s)
+  if (now - controllerSeenAt > APP_CONFIG.dashboard.offlineAfterMs) {
+    return { ...device, status: "offline", updatedAt: controllerSeenAt || null };
+  }
+
+  // 2. Controller is online, check specific slot state
+  if (liveSlot) {
+    return { ...device, status: normalizeStatus(liveSlot.status), updatedAt: liveSlot.lastSeen };
+  }
+
+  // 3. Online but no data for this specific slot ID broadcasted yet
+  return { ...device, status: "offline", updatedAt: null };
+}
+
+function renderDashboard() {
+  const loc = APP_STATE.selectedLocation;
+  const locDevices = loadDevices().filter(d => d.location === loc);
+  const resolvedSlots = locDevices.map(resolveSlot);
+
+  updateMetrics(resolvedSlots);
+  
+  document.getElementById("location-title").textContent = loc || "No location selected";
+  document.getElementById("location-summary").textContent = locDevices.length ? 
+    `${locDevices.length} total slots tracked in this zone.` : "Add parking slots from the Devices page.";
+
+  const grid = document.getElementById("parking-grid");
+  if (!loc || !locDevices.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">No slots added for this location.</div>`;
+    document.getElementById("page-nav-top").innerHTML = "";
+    document.getElementById("page-nav-bottom").innerHTML = "";
+    return;
+  }
+
+  const totalPages = Math.max(1, Math.ceil(resolvedSlots.length / APP_CONFIG.dashboard.pageSize));
+  APP_STATE.currentGridPage = Math.min(APP_STATE.currentGridPage, totalPages);
+  
+  const start = (APP_STATE.currentGridPage - 1) * APP_CONFIG.dashboard.pageSize;
+  grid.innerHTML = resolvedSlots.slice(start, start + APP_CONFIG.dashboard.pageSize).map(renderSlotCard).join("");
+  
+  renderPageNav(totalPages);
+  updateLastUpdatedChip(resolvedSlots);
+}
+
+function renderSlotCard(slot) {
+  const labels = { "free": "Empty / Free", "occupied": "Occupied", "offline": "Offline" };
+  const sNum = slot.slotNumber ? `Slot ${slot.slotNumber}` : "Pending Number";
+  return `
+    <article class="parking-slot ${slot.status}">
+      <div class="slot-visual"><div class="car-shape"></div></div>
+      <div class="slot-body">
+        <div class="slot-name">${escapeHtml(slot.displayName)}</div>
+        <div class="slot-meta">${escapeHtml(slot.location)}<br>${escapeHtml(sNum)}</div>
+        <div class="slot-status ${slot.status}">${labels[slot.status]}</div>
+      </div>
+    </article>`;
+}
+
+function updateMetrics(slots) {
+  const free = slots.filter(s => s.status === "free").length;
+  const occ = slots.filter(s => s.status === "occupied").length;
+  const off = slots.filter(s => s.status === "offline").length;
+  const total = slots.length;
+  const rate = (free + occ) ? Math.round((occ / (free + occ)) * 100) : 0;
+
+  document.getElementById("metric-total").textContent = total;
+  document.getElementById("metric-free").textContent = free;
+  document.getElementById("metric-occupied").textContent = occ;
+  document.getElementById("metric-offline").textContent = off;
+  document.getElementById("metric-rate").textContent = `${rate}%`;
+}
+
+function renderPageNav(totalPages) {
+  const html = totalPages > 1 ? Array.from({length: totalPages}, (_, i) => `
+    <button class="page-nav-button ${i + 1 === APP_STATE.currentGridPage ? "active" : ""}" 
+            onclick="setGridPage(${i + 1})">${i + 1}</button>
+  `).join("") : "";
+  document.getElementById("page-nav-top").innerHTML = html;
+  document.getElementById("page-nav-bottom").innerHTML = html;
+}
+
+window.setGridPage = function(page) { APP_STATE.currentGridPage = page; renderDashboard(); }
+
+function renderDevicesTable() {
+  const container = document.getElementById("devices-list-container");
+  const devices = loadDevices();
+  if (!devices.length) return container.innerHTML = '<div class="empty-state">No slots added yet.</div>';
+
+  const grouped = devices.reduce((acc, d) => {
+    (acc[d.location] = acc[d.location] || []).push(d);
+    return acc;
+  }, {});
+
+  container.innerHTML = Object.entries(grouped).map(([loc, list], i) => {
+    const id = `grp-${i}`;
+    return `
+      <section class="location-group open" id="${id}">
+        <button class="location-header" onclick="document.getElementById('${id}').classList.toggle('open')">
+          <span>${escapeHtml(loc)} (${list.length} slots)</span><span class="location-arrow">v</span>
+        </button>
+        <div class="location-content">
+          ${list.map(d => {
+            const slot = resolveSlot(d);
+            return `
+              <div class="device-row">
+                <div>
+                  <div class="device-name">${escapeHtml(d.displayName)}</div>
+                  <div class="device-meta">ESP ID: ${d.controllerId} | Slot ID: ${d.slotId} <br> Live Status: <b>${slot.status.toUpperCase()}</b></div>
+                </div>
+                <div class="device-actions">
+                  <button class="btn btn-soft" onclick="renameDevice('${d.slotId}')">Rename</button>
+                  <button class="btn btn-danger" onclick="removeDevice('${d.slotId}')">Remove</button>
+                </div>
+              </div>`;
+          }).join("")}
+        </div>
+      </section>`;
+  }).join("");
+}
+
+// =====================================
+// LIVE MQTT FEED
+// =====================================
+function initMQTT() {
+  if (!window.mqtt) return;
+
+  APP_STATE.mqttClient = window.mqtt.connect(APP_CONFIG.mqtt.brokerUrl, {
+    username: APP_CONFIG.mqtt.username, password: APP_CONFIG.mqtt.password,
+    clean: true, keepalive: 60, connectTimeout: 30000, reconnectPeriod: 5000
+  });
+
+  APP_STATE.mqttClient.on("connect", () => {
+    document.getElementById("connection-chip").textContent = "MQTT Connected";
+    APP_STATE.mqttClient.subscribe(`${APP_CONFIG.mqtt.rootTopic}/+/status`);
+  });
+
+  APP_STATE.mqttClient.on("message", (topic, message) => {
+    const parts = topic.split("/");
+    if (parts.length !== 3 || parts[2] !== "status") return;
+    
+    const controllerId = parts[1];
+    APP_STATE.liveControllerSeen[controllerId] = Date.now(); // Heartbeat registered!
+
+    try {
+      const payload = JSON.parse(message.toString());
+      // Matches the ESP32 Payload structure: {"device_id":"...", "slots":[{"slot_id":"...", "status":"..."}]}
+      if (payload.slots && Array.isArray(payload.slots)) {
+        payload.slots.forEach(slot => {
+          APP_STATE.liveSlotData[slot.slot_id] = {
+            controllerId: controllerId,
+            status: normalizeStatus(slot.status),
+            lastSeen: Date.now()
+          };
+        });
+      }
+      renderDashboard();
+      if(APP_STATE.currentPage === "devices") renderDevicesTable();
+    } catch (e) { console.error("MQTT Parsing error", e); }
+  });
+
+  const onOffline = () => { document.getElementById("connection-chip").textContent = "MQTT Disconnected"; };
+  APP_STATE.mqttClient.on("reconnect", onOffline);
+  APP_STATE.mqttClient.on("offline", onOffline);
+}
+
+// =====================================
+// UTILITIES
+// =====================================
+function updateLastUpdatedChip(slots) {
+  const latest = slots.reduce((max, s) => Math.max(max, s.updatedAt || 0), 0);
+  document.getElementById("last-updated-chip").textContent = latest ? `Last live data: ${new Date(latest).toLocaleTimeString()}` : "Waiting for live data...";
+}
+function normalizeStatus(s) { return ["occupied", "free", "offline"].includes(s) ? s : "offline"; }
+function showAlert(msg, type) {
+  const box = document.getElementById("devices-alert");
+  box.className = `alert ${type}`; box.textContent = msg; box.hidden = false;
+  setTimeout(() => box.hidden = true, 3000);
+}
+function loadJson(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch { return fallback; } }
+function escapeHtml(val) { return String(val ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;"); }
+function toggleSidebar() { document.body.classList.toggle("sidebar-open"); }
+function closeSidebar() { document.body.classList.remove("sidebar-open"); }
+
+</script>
+</body>
+</html>
