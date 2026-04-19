@@ -456,16 +456,28 @@ button, input, select { font: inherit; }
 // APP CONFIGURATION & STORAGE
 // =====================================
 const APP_CONFIG = {
+  firebase: {
+    enabled: true, // Set to true!
+    config: {
+      // PASTE YOUR FIREBASE CONFIG HERE
+    apiKey: "AIzaSyCupRS1DRQOfc9DENJ5gFbf_-jm0geidYQ",
+    authDomain: "parkpilot-3e5a1.firebaseapp.com",
+    projectId: "parkpilot-3e5a1",
+    storageBucket: "parkpilot-3e5a1.firebasestorage.app",
+    messagingSenderId: "160374715623",
+    appId: "1:160374715623:web:c6cd37160bc1c07684de42"
+    }
+  },
   mqtt: {
     enabled: true,
-    brokerUrl: "wss://broker.hivemq.com:8443/mqtt", // Standard secure public broker
-    username: "",
-    password: "",
+    brokerUrl: "ef7bbdce942b4ddd8ddc2b356b1a59d9.s1.eu.hivemq.cloud:8884/mqtt", // Standard secure public broker
+    username: "parkpilot_admin",
+    password: "Emmanuel1234$",
     rootTopic: "parking"
   },
   dashboard: {
     pageSize: 40,
-    offlineAfterMs: 15000 // 15 Second Offline Heartbeat Check
+    offlineAfterMs: 10000 // 15 Second Offline Heartbeat Check
   }
 };
 
