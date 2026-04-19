@@ -569,26 +569,32 @@ function bindUI() {
    input.type = input.type === "password" ? "text" : "password";
   });
   
-  document.getElementById("auth-password").addEventListener("input", (e) => {
-  const val = e.target.value;
-  const strengthBox = document.getElementById("password-strength");
+document.getElementById("auth-password").addEventListener("input", (e) => {
+    const strengthBox = document.getElementById("password-strength");
 
-  let strength = "Weak";
-  let color = "red";
+    // Check mode: If logging in, keep the box empty and stop checking
+    if (APP_STATE.isLoginMode) {
+      strengthBox.textContent = "";
+      return;
+    }
 
-  if (val.length >= 8) {
-    strength = "Medium";
-    color = "orange";
-  }
+    const val = e.target.value;
+    let strength = "Weak";
+    let color = "red";
 
-  if (/[A-Z]/.test(val) && /[0-9]/.test(val) && val.length >= 10) {
-    strength = "Strong";
-    color = "green";
-  }
+    if (val.length >= 8) {
+      strength = "Medium";
+      color = "orange";
+    }
 
-  strengthBox.textContent = `Strength: ${strength}`;
-  strengthBox.style.color = color;
-});
+    if (/[A-Z]/.test(val) && /[0-9]/.test(val) && val.length >= 10) {
+      strength = "Strong";
+      color = "green";
+    }
+
+    strengthBox.textContent = `Strength: ${strength}`;
+    strengthBox.style.color = color;
+  });
   document.getElementById("sidebar-toggle").addEventListener("click", toggleSidebar);
   document.getElementById("sidebar-overlay").addEventListener("click", closeSidebar);
 }
@@ -611,17 +617,23 @@ function handleAuthCheck() {
 function handleAuthForm() {
   const email = document.getElementById("auth-email").value.trim();
   const pass = document.getElementById("auth-password").value.trim();
+  const submitBtn = document.getElementById("auth-submit-btn");
 
   if (!email || !pass) {
     showAuthError("Please fill in both fields.");
     return;
   }
 
-  // ✅ ADD THIS (only for signup)
+  // Only check password length if signing up
   if (!APP_STATE.isLoginMode && pass.length < 8) {
     showAuthError("Password must be at least 8 characters long.");
     return;
   }
+
+  // --- START LOADING ANIMATION ---
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Processing...";
+  document.getElementById("auth-error").hidden = true;
 
   if (APP_STATE.isLoginMode) {
     // LOGIN
@@ -630,6 +642,7 @@ function handleAuthForm() {
         document.getElementById("auth-overlay").hidden = true;
         hydrateUI();
         initMQTT();
+        resetAuthButton(); // Reset in case they log out later
       })
       .catch(err => handleAuthError(err));
   } else {
@@ -639,39 +652,45 @@ function handleAuthForm() {
         document.getElementById("auth-overlay").hidden = true;
         hydrateUI();
         initMQTT();
+        resetAuthButton();
       })
       .catch(err => handleAuthError(err));
   }
-  document.getElementById("auth-form-container").submit();
+  // 🚨 Notice we completely removed the .submit() line here!
 }
 
+// Helper function to reset the button text
+function resetAuthButton() {
+  const submitBtn = document.getElementById("auth-submit-btn");
+  submitBtn.disabled = false;
+  submitBtn.textContent = APP_STATE.isLoginMode ? "Login" : "Sign Up";
+}
+  
   function handleAuthError(err) {
   let msg = "Login failed. Please try again.";
-
   switch (err.code) {
     case "auth/invalid-credential":
     case "auth/wrong-password":
     case "auth/user-not-found":
       msg = "Incorrect email or password.";
       break;
-
     case "auth/email-already-in-use":
       msg = "Email already exists. Please login.";
       break;
-
     case "auth/invalid-email":
       msg = "Invalid email format.";
       break;
-
     case "auth/too-many-requests":
       msg = "Too many attempts. Try again later.";
       break;
-
     default:
       msg = "Something went wrong. Please try again.";
   }
 
   showAuthError(msg);
+
+  // --- STOP LOADING ANIMATION ON ERROR ---
+  resetAuthButton();
 }
   
 function toggleAuthMode() {
@@ -696,6 +715,8 @@ function toggleAuthMode() {
   );
 
   document.getElementById("auth-error").hidden = true;
+  document.getElementById("password-strength").textContent = ""; // Clear strength text
+  document.getElementById("auth-password").value = ""; // Clear the password field
 }
 
 function logoutUser() {
