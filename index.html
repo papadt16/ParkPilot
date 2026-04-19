@@ -249,12 +249,12 @@ button, input, select { font: inherit; }
 .mobile-topbar { display: none; }
 .sidebar-overlay { display: none; }
 
-/* Auth Loading Animation */
+/* Auth Loading Animation - Fixed Car Visibility */
 @keyframes driveAcross {
-    0% { transform: translateX(-120px) rotate(0deg); opacity: 0; }
+    0% { transform: translateX(-150px); opacity: 0; }
     10% { opacity: 1; }
     90% { opacity: 1; }
-    100% { transform: translateX(120px) rotate(0deg); opacity: 0; }
+    100% { transform: translateX(150px); opacity: 0; }
 }
 
 @keyframes roadLines {
@@ -264,32 +264,54 @@ button, input, select { font: inherit; }
 
 #auth-loading {
     text-align: center;
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.98);
     border-radius: var(--radius);
     padding: 48px 32px;
     width: min(400px, calc(100vw - 32px));
     box-shadow: var(--shadow);
+    z-index: 1001;
 }
 
 .car-loading-animation {
     position: relative;
-    height: 80px;
-    overflow: hidden;
+    height: 90px;
+    overflow: visible;
     margin-bottom: 20px;
 }
 
-.loading-car {
-    font-size: 48px;
+.loading-car-wrapper {
     position: absolute;
     left: 0;
-    top: 15px;
-    animation: driveAcross 1.8s ease-in-out infinite;
-    filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.1));
+    top: 0;
+    width: 100%;
+    height: 70px;
+    overflow: visible;
+}
+
+.loading-car {
+    font-size: 56px;
+    position: absolute;
+    left: 0;
+    top: 0;
+    animation: driveAcross 2s ease-in-out infinite;
+    filter: drop-shadow(2px 4px 8px rgba(0,0,0,0.15));
+    background: transparent;
+    color: var(--brand);
+    text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    width: 70px;
+    text-align: center;
+    line-height: 1;
+}
+
+/* Fallback: if emoji fails, show a simple car shape using pseudo-element */
+.loading-car::before {
+    content: "🚗";
+    visibility: visible;
 }
 
 .loading-road {
     position: absolute;
-    bottom: 0;
+    bottom: 8px;
     left: 0;
     right: 0;
     height: 4px;
@@ -303,7 +325,7 @@ button, input, select { font: inherit; }
     border-radius: 4px;
     animation: roadLines 0.8s linear infinite;
 }
-
+  
 /* RESPONSIVE MEDIA QUERIES */
 @media (max-width: 1400px) {
   .parking-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
@@ -336,13 +358,15 @@ button, input, select { font: inherit; }
 <body>
   <div id="auth-overlay">
     <div id="auth-loading">
-        <div class="car-loading-animation">
+    <div class="car-loading-animation">
+        <div class="loading-car-wrapper">
             <div class="loading-car">🚗</div>
-            <div class="loading-road"></div>
         </div>
-        <h2 style="color: var(--brand); margin-top: 20px;">Loading ParkPilot...</h2>
-        <p style="color: var(--muted);">Connecting to your parking system</p>
+        <div class="loading-road"></div>
     </div>
+    <h2 style="color: var(--brand); margin-top: 20px;">Loading ParkPilot...</h2>
+    <p style="color: var(--muted);">Connecting to your parking system</p>
+</div>
 
     <div class="auth-card" id="auth-form-container" style="display: none;">
         <div class="brand-mark" style="margin-bottom: 15px;">PP</div>
