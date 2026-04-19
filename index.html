@@ -285,24 +285,11 @@ button, input, select { font: inherit; }
       <div id="auth-error" class="auth-error" hidden></div>
       <div class="form-group" style="margin-bottom: 15px;">
         <label class="form-label" for="auth-email">Email Address</label>
-       <input 
-      type="email" 
-      id="auth-email" 
-      name="email"
-      class="form-input" 
-      placeholder="user@example.com"
-      autocomplete="email">
+        <input type="email" id="auth-email" name="username" class="form-input" placeholder="user@example.com" autocomplete="username">
       </div>
      <div class="form-group" style="margin-bottom: 15px; position: relative;">
        <label class="form-label" for="auth-password">Password</label>
-   <input 
-    type="password" 
-    id="auth-password" 
-    name="password"
-    class="form-input" 
-    placeholder="Enter password"
-    autocomplete="current-password"
-    >
+       <input type="password" id="auth-password" name="password" class="form-input" placeholder="Enter password" autocomplete="current-password">
    <div id="password-strength" style="font-size: 0.85rem; margin-top: 5px;"></div>
    <span id="toggle-password" 
         style="position:absolute; right:15px; top:38px; cursor:pointer;">
@@ -635,20 +622,22 @@ function handleAuthForm() {
   submitBtn.textContent = "Processing...";
   document.getElementById("auth-error").hidden = true;
 
-  if (APP_STATE.isLoginMode) {
+if (APP_STATE.isLoginMode) {
     // LOGIN
     signInWithEmailAndPassword(auth, email, pass)
       .then(() => {
+        triggerPasswordSave(email, pass); // <--- ADDED HERE
         document.getElementById("auth-overlay").hidden = true;
         hydrateUI();
         initMQTT();
-        resetAuthButton(); // Reset in case they log out later
+        resetAuthButton();
       })
       .catch(err => handleAuthError(err));
   } else {
     // SIGN UP
     createUserWithEmailAndPassword(auth, email, pass)
       .then(() => {
+        triggerPasswordSave(email, pass); // <--- ADDED HERE
         document.getElementById("auth-overlay").hidden = true;
         hydrateUI();
         initMQTT();
@@ -1029,6 +1018,22 @@ function initMQTT() {
   APP_STATE.mqttClient.on("offline", onOffline);
 }
 
+  function triggerPasswordSave(email, password) {
+  // 1. Unfocus the inputs (this tricks some older browsers into realizing the form is "done")
+  document.getElementById("auth-email").blur();
+  document.getElementById("auth-password").blur();
+
+  // 2. Use the modern Web Credentials API (Supported by Chrome, Edge, Opera, Android)
+  if (window.PasswordCredential && navigator.credentials) {
+    const cred = new PasswordCredential({
+      id: email,
+      password: password
+    });
+    // This pops up the native "Save Password?" browser prompt
+    navigator.credentials.store(cred).catch(err => console.log("Credential prompt ignored or failed:", err));
+  }
+}
+  
 // =====================================
 // UTILITIES
 // =====================================
