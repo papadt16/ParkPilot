@@ -249,6 +249,61 @@ button, input, select { font: inherit; }
 .mobile-topbar { display: none; }
 .sidebar-overlay { display: none; }
 
+/* Auth Loading Animation */
+@keyframes driveAcross {
+    0% { transform: translateX(-120px) rotate(0deg); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { transform: translateX(120px) rotate(0deg); opacity: 0; }
+}
+
+@keyframes roadLines {
+    0% { background-position: 0 0; }
+    100% { background-position: 60px 0; }
+}
+
+#auth-loading {
+    text-align: center;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: var(--radius);
+    padding: 48px 32px;
+    width: min(400px, calc(100vw - 32px));
+    box-shadow: var(--shadow);
+}
+
+.car-loading-animation {
+    position: relative;
+    height: 80px;
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.loading-car {
+    font-size: 48px;
+    position: absolute;
+    left: 0;
+    top: 15px;
+    animation: driveAcross 1.8s ease-in-out infinite;
+    filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.1));
+}
+
+.loading-road {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: repeating-linear-gradient(
+        90deg,
+        var(--brand) 0px,
+        var(--brand) 20px,
+        var(--border) 20px,
+        var(--border) 40px
+    );
+    border-radius: 4px;
+    animation: roadLines 0.8s linear infinite;
+}
+
 /* RESPONSIVE MEDIA QUERIES */
 @media (max-width: 1400px) {
   .parking-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
@@ -280,29 +335,33 @@ button, input, select { font: inherit; }
 </head>
 <body>
   <div id="auth-overlay">
-   <form class="auth-card" id="auth-form-container" method="POST" autocomplete="on">
-      <div class="brand-mark" style="margin-bottom: 15px;">PP</div>
-      <h2 id="auth-title">Login to ParkPilot</h2>
-      <div id="auth-error" class="auth-error" hidden></div>
-      <div class="form-group" style="margin-bottom: 15px;">
-        <label class="form-label" for="auth-email">Email Address</label>
-        <input type="email" id="auth-email" name="username" class="form-input" placeholder="user@example.com" autocomplete="username">
-      </div>
-     <div class="form-group" style="margin-bottom: 15px; position: relative;">
-       <label class="form-label" for="auth-password">Password</label>
-       <input type="password" id="auth-password" name="password" class="form-input" placeholder="Enter password" autocomplete="current-password">
-   <div id="password-strength" style="font-size: 0.85rem; margin-top: 5px;"></div>
-   <span id="toggle-password" 
-        style="position:absolute; right:15px; top:38px; cursor:pointer;">
-        👁️
-      </span>
-   </div>
-      <button class="btn btn-primary btn-block" id="auth-submit-btn" type="submit">
-      Login
-     </button>
-      <button class="auth-toggle" id="auth-toggle-btn" type="button">Need an account? Sign Up</button>
-    </form>
-  </div>
+    <div id="auth-loading">
+        <div class="car-loading-animation">
+            <div class="loading-car">🚗</div>
+            <div class="loading-road"></div>
+        </div>
+        <h2 style="color: var(--brand); margin-top: 20px;">Loading ParkPilot...</h2>
+        <p style="color: var(--muted);">Connecting to your parking system</p>
+    </div>
+
+    <div class="auth-card" id="auth-form-container" style="display: none;">
+        <div class="brand-mark" style="margin-bottom: 15px;">PP</div>
+        <h2 id="auth-title">Login to ParkPilot</h2>
+        <div id="auth-error" class="auth-error" hidden></div>
+        <div class="form-group" style="margin-bottom: 15px;">
+            <label class="form-label" for="auth-email">Email Address</label>
+            <input type="email" id="auth-email" name="username" class="form-input" placeholder="user@example.com" autocomplete="username">
+        </div>
+        <div class="form-group" style="margin-bottom: 15px; position: relative;">
+            <label class="form-label" for="auth-password">Password</label>
+            <input type="password" id="auth-password" name="password" class="form-input" placeholder="Enter password" autocomplete="current-password">
+            <div id="password-strength" style="font-size: 0.85rem; margin-top: 5px;"></div>
+            <span id="toggle-password" style="position:absolute; right:15px; top:38px; cursor:pointer;">👁️</span>
+        </div>
+        <button class="btn btn-primary btn-block" id="auth-submit-btn" type="submit">Login</button>
+        <button class="auth-toggle" id="auth-toggle-btn" type="button">Need an account? Sign Up</button>
+    </div>
+</div>
 
   <div class="mobile-topbar">
     <button class="btn btn-soft" id="sidebar-toggle" type="button" aria-label="Toggle menu" style="padding: 6px 12px;">☰</button>
@@ -591,15 +650,35 @@ document.getElementById("auth-password").addEventListener("input", (e) => {
 // BASIC AUTHENTICATION (Local Storage Bypass)
 // =====================================
 function handleAuthCheck() {
-  onAuthStateChanged(auth, (user) => {
-    if (user) {
-      document.getElementById("auth-overlay").hidden = true;
-      hydrateUI();
-      initMQTT();
-    } else {
-      document.getElementById("auth-overlay").hidden = false;
-    }
-  });
+    // Initially hide the login form, show loading
+    document.getElementById("auth-form-container").style.display = "none";
+    
+    onAuthStateChanged(auth, (user) => {
+        // Hide the loading animation
+        const loadingDiv = document.getElementById("auth-loading");
+        if (loadingDiv) {
+            loadingDiv.style.display = "none";
+        }
+        
+        if (user) {
+            // User is logged in!
+            document.getElementById("auth-overlay").hidden = true;
+            document.getElementById("auth-form-container").style.display = "none";
+            hydrateUI();
+            initMQTT();
+        } else {
+            // User is logged out - show the login form
+            document.getElementById("auth-overlay").hidden = false;
+            document.getElementById("auth-form-container").style.display = "block";
+            
+            // Reset form state
+            const submitBtn = document.getElementById("auth-submit-btn");
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = APP_STATE.isLoginMode ? "Login" : "Sign Up";
+            }
+        }
+    });
 }
 
 function handleAuthForm() {
