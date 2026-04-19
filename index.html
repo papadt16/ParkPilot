@@ -279,7 +279,7 @@ button, input, select { font: inherit; }
 </head>
 <body>
   <div id="auth-overlay">
-    <form class="auth-card" id="auth-form-container">
+   <form class="auth-card" id="auth-form-container" method="POST" autocomplete="on">
       <div class="brand-mark" style="margin-bottom: 15px;">PP</div>
       <h2 id="auth-title">Login to ParkPilot</h2>
       <div id="auth-error" class="auth-error" hidden></div>
@@ -293,16 +293,22 @@ button, input, select { font: inherit; }
       placeholder="user@example.com"
       autocomplete="email">
       </div>
-      <div class="form-group" style="margin-bottom: 15px;">
-        <label class="form-label" for="auth-password">Password</label>
-        <input 
-      type="password" 
-      id="auth-password" 
-      name="password"
-      class="form-input" 
-      placeholder="Enter password"
-      autocomplete="current-password">
-      </div>
+     <div class="form-group" style="margin-bottom: 15px; position: relative;">
+       <label class="form-label" for="auth-password">Password</label>
+   <input 
+    type="password" 
+    id="auth-password" 
+    name="password"
+    class="form-input" 
+    placeholder="Enter password"
+    autocomplete="current-password"
+    >
+   <div id="password-strength" style="font-size: 0.85rem; margin-top: 5px;"></div>
+   <span id="toggle-password" 
+        style="position:absolute; right:15px; top:38px; cursor:pointer;">
+        👁️
+      </span>
+   </div>
       <button class="btn btn-primary btn-block" id="auth-submit-btn" type="submit">
       Login
      </button>
@@ -557,7 +563,32 @@ function bindUI() {
   document.querySelectorAll(".nav-link[data-page]").forEach((link) => {
     link.addEventListener("click", () => showPage(link.dataset.page));
   });
+  
+  document.getElementById("toggle-password").addEventListener("click", () => {
+    const input = document.getElementById("auth-password");
+   input.type = input.type === "password" ? "text" : "password";
+  });
+  
+  document.getElementById("auth-password").addEventListener("input", (e) => {
+  const val = e.target.value;
+  const strengthBox = document.getElementById("password-strength");
 
+  let strength = "Weak";
+  let color = "red";
+
+  if (val.length >= 8) {
+    strength = "Medium";
+    color = "orange";
+  }
+
+  if (/[A-Z]/.test(val) && /[0-9]/.test(val) && val.length >= 10) {
+    strength = "Strong";
+    color = "green";
+  }
+
+  strengthBox.textContent = `Strength: ${strength}`;
+  strengthBox.style.color = color;
+});
   document.getElementById("sidebar-toggle").addEventListener("click", toggleSidebar);
   document.getElementById("sidebar-overlay").addEventListener("click", closeSidebar);
 }
@@ -611,6 +642,7 @@ function handleAuthForm() {
       })
       .catch(err => handleAuthError(err));
   }
+  document.getElementById("auth-form-container").submit();
 }
 
   function handleAuthError(err) {
@@ -667,6 +699,10 @@ function toggleAuthMode() {
 }
 
 function logoutUser() {
+  const confirmLogout = confirm("Are you sure you want to log out?");
+
+  if (!confirmLogout) return;
+
   signOut(auth).then(() => {
     location.reload();
   });
