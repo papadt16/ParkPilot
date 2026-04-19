@@ -451,8 +451,21 @@ button, input, select { font: inherit; }
       </section>
     </main>
   </div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js"></script>
+  
+<script type="module">
 
-<script>
+// ✅ Firebase imports MUST be at the top
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { 
+  getAuth, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged 
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  
 // =====================================
 // APP CONFIGURATION & STORAGE
 // =====================================
@@ -460,7 +473,6 @@ const APP_CONFIG = {
   firebase: {
     enabled: true, // Set to true!
     config: {
-      // PASTE YOUR FIREBASE CONFIG HERE
     apiKey: "AIzaSyCupRS1DRQOfc9DENJ5gFbf_-jm0geidYQ",
     authDomain: "parkpilot-3e5a1.firebaseapp.com",
     projectId: "parkpilot-3e5a1",
@@ -481,7 +493,10 @@ const APP_CONFIG = {
     offlineAfterMs: 10000 // 15 Second Offline Heartbeat Check
   }
 };
+const app = initializeApp(APP_CONFIG.firebase.config);
+const auth = getAuth(app);
 
+  
 const STORAGE_KEYS = {
   devices: "parking_devices_v2",
   uiState: "parking_ui_state_v2",
@@ -531,25 +546,45 @@ function bindUI() {
 // BASIC AUTHENTICATION (Local Storage Bypass)
 // =====================================
 function handleAuthCheck() {
-  const loggedIn = localStorage.getItem(STORAGE_KEYS.demoSession);
-  if (loggedIn) {
-    document.getElementById("auth-overlay").hidden = true;
-    hydrateUI();
-    initMQTT();
-  } else {
-    document.getElementById("auth-overlay").hidden = false;
-  }
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      document.getElementById("auth-overlay").hidden = true;
+      hydrateUI();
+      initMQTT();
+    } else {
+      document.getElementById("auth-overlay").hidden = false;
+    }
+  });
 }
 
 function handleAuthForm() {
   const email = document.getElementById("auth-email").value.trim();
   const pass = document.getElementById("auth-password").value.trim();
-  if(!email || !pass) {
+
+  if (!email || !pass) {
     showAuthError("Please fill in both fields.");
     return;
   }
-  localStorage.setItem(STORAGE_KEYS.demoSession, "true");
-  handleAuthCheck();
+
+  if (APP_STATE.isLoginMode) {
+    // LOGIN
+    signInWithEmailAndPassword(auth, email, pass)
+      .then(() => {
+        document.getElementById("auth-overlay").hidden = true;
+        hydrateUI();
+        initMQTT();
+      })
+      .catch(err => showAuthError(err.message));
+  } else {
+    // SIGN UP
+    createUserWithEmailAndPassword(auth, email, pass)
+      .then(() => {
+        document.getElementById("auth-overlay").hidden = true;
+        hydrateUI();
+        initMQTT();
+      })
+      .catch(err => showAuthError(err.message));
+  }
 }
 
 function toggleAuthMode() {
@@ -561,8 +596,9 @@ function toggleAuthMode() {
 }
 
 function logoutUser() {
-  localStorage.removeItem(STORAGE_KEYS.demoSession);
-  location.reload();
+  signOut(auth).then(() => {
+    location.reload();
+  });
 }
 
 function showAuthError(msg) {
