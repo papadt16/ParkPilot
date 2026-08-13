@@ -403,6 +403,9 @@ button, input, select { font: inherit; }
          <button class="nav-link" type="button" data-page="camera">
           <span>📹 Camera Feed</span>
         </button>
+        <button class="nav-link" type="button" data-page="access">
+          <span>🚘 Access Control</span>
+        </button>
         <button class="nav-link" type="button" data-page="devices">
           <span>🔌 Devices</span>
         </button>
@@ -578,20 +581,72 @@ button, input, select { font: inherit; }
              <h4 style="margin: 0 0 12px; font-size: 0.85rem; font-weight: 800; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em;">Recent ALPR Logs</h4>
              
              <!-- Placeholder for future ALPR Logs (To be populated dynamically via Firebase later) -->
-             <div style="display: flex; flex-direction: column; gap: 10px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #fff; border: 1px solid var(--border); border-radius: 14px; font-size: 0.9rem;">
-                   <span style="font-family: monospace; font-weight: 700; color: var(--muted);">[14:22:05]</span>
-                   <span>Slot 2: <strong style="color: var(--brand);">GYR-84GDT</strong></span>
-                   <span class="slot-status occupied" style="margin: 0;">UNAUTHORIZED</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #fff; border: 1px solid var(--border); border-radius: 14px; font-size: 0.9rem;">
-                   <span style="font-family: monospace; font-weight: 700; color: var(--muted);">[13:45:12]</span>
-                   <span>Slot 1: <strong style="color: var(--brand);">JQY-12WHE</strong></span>
-                   <span class="slot-status free" style="margin: 0;">AUTHORIZED</span>
-                </div>
-             </div>
+          <div class="card" style="margin-top: 24px;">
+              <div class="card-header">
+              <div>
+                   <h3 class="card-title">Live Detection Logs</h3>
+                   <p class="card-subtitle">Recent license plates captured by the system.</p>
+              </div>
+          </div>
+          <!-- THIS IS THE NEW EMPTY CONTAINER -->
+          <div id="alpr-log-container" class="devices-list-container">
+             <div class="empty-state">Waiting for vehicle detections...</div>
           </div>
         </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- START OF ACCESS CONTROL SECTION -->
+      <section id="access-section" class="page-section">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Access Control</h1>
+            <p class="page-subtitle">Assign authorized license plates to specific parking slots.</p>
+          </div>
+        </div>
+
+        <div id="access-alert" class="alert" hidden></div>
+
+        <div class="device-layout">
+          <article class="card" style="grid-column: 1 / -1;">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title">Register License Plate</h3>
+                <p class="card-subtitle">Enter a plate number and assign it to an existing slot.</p>
+              </div>
+            </div>
+
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label" for="plate-slot-select">Select Parking Slot</label>
+                <select id="plate-slot-select" class="form-input"></select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="plate-number-input">License Plate Number</label>
+                <input type="text" id="plate-number-input" class="form-input" placeholder="e.g., JQY-12WHE" style="text-transform: uppercase;">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="plate-owner-input">Owner Name (Optional)</label>
+                <input type="text" id="plate-owner-input" class="form-input" placeholder="e.g., John Doe">
+              </div>
+            </div>
+
+            <div class="button-row">
+              <button class="btn btn-primary" id="add-plate-btn" type="button">Authorize Plate</button>
+            </div>
+          </article>
+        </div>
+
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Authorized Plates</h3>
+              <p class="card-subtitle">List of vehicles allowed in reserved slots.</p>
+            </div>
+          </div>
+          <div id="plates-list-container" class="devices-list-container"></div>
+        </article>
       </section>
     </main>
   </div>
@@ -644,7 +699,8 @@ const auth = getAuth(app);
 const STORAGE_KEYS = {
   devices: "parking_devices_v2",
   uiState: "parking_ui_state_v2",
-  demoSession: "parking_local_auth"
+  demoSession: "parking_local_auth",
+  plates: "parking_plates_v1"
 };
 
 const APP_STATE = {
@@ -675,6 +731,7 @@ function bindUI() {
   document.getElementById("auth-toggle-btn").addEventListener("click", toggleAuthMode);
   document.getElementById("logout-btn").addEventListener("click", logoutUser);
   document.getElementById("add-slot-btn").addEventListener("click", addDevice);
+  document.getElementById("add-plate-btn").addEventListener("click", addPlate);
   document.getElementById("dashboard-location-select").addEventListener("change", handleLocationChange);
 
   // ✅ ADD THIS HERE
@@ -893,6 +950,8 @@ function hydrateUI() {
   renderLocationSelects();
   renderDashboard();
   renderDevicesTable();
+  if (typeof renderAccessSelects === "function") renderAccessSelects();
+  if (typeof renderPlatesTable === "function") renderPlatesTable();
 }
 
 function showPage(page) {
@@ -1190,6 +1249,82 @@ function initMQTT() {
     navigator.credentials.store(cred).catch(err => console.log("Credential prompt ignored or failed:", err));
   }
 }
+
+// =====================================
+// ACCESS CONTROL & PLATES
+// =====================================
+function loadPlates() { return loadJson(STORAGE_KEYS.plates, []); }
+function savePlates(plates) { localStorage.setItem(STORAGE_KEYS.plates, JSON.stringify(plates)); }
+
+window.renderAccessSelects = function() {
+  const devices = loadDevices();
+  const select = document.getElementById("plate-slot-select");
+  if (!select) return;
+  select.innerHTML = '<option value="">Select a saved slot</option>';
+  devices.forEach(d => {
+    select.appendChild(new Option(`${d.displayName} (${d.slotId})`, d.slotId));
+  });
+};
+
+window.addPlate = function() {
+  const slotId = document.getElementById("plate-slot-select").value;
+  const plateNum = document.getElementById("plate-number-input").value.trim().toUpperCase();
+  const owner = document.getElementById("plate-owner-input").value.trim();
+
+  if (!slotId) return showAlert("Please select a slot.", "danger", "access-alert");
+  if (!plateNum) return showAlert("Please enter a license plate.", "danger", "access-alert");
+
+  const plates = loadPlates();
+  if (plates.some(p => p.plateNum === plateNum)) {
+    return showAlert("This plate is already registered.", "danger", "access-alert");
+  }
+
+  const device = loadDevices().find(d => d.slotId === slotId);
+  plates.push({ slotId, plateNum, owner, location: device ? device.location : "Unknown" });
+  savePlates(plates);
+
+  document.getElementById("plate-number-input").value = "";
+  document.getElementById("plate-owner-input").value = "";
+
+  renderPlatesTable();
+  showAlert("Plate authorized successfully.", "success", "access-alert");
+};
+
+window.removePlate = function(plateNum) {
+  if (!window.confirm(`Remove authorization for ${plateNum}?`)) return;
+  const plates = loadPlates().filter(p => p.plateNum !== plateNum);
+  savePlates(plates);
+  renderPlatesTable();
+  showAlert("Plate removed.", "success", "access-alert");
+};
+
+window.renderPlatesTable = function() {
+  const container = document.getElementById("plates-list-container");
+  if (!container) return;
+  const plates = loadPlates();
+  const devices = loadDevices();
+
+  if (!plates.length) {
+    container.innerHTML = '<div class="empty-state">No plates authorized yet.</div>';
+    return;
+  }
+
+  container.innerHTML = plates.map(p => {
+    const slot = devices.find(d => d.slotId === p.slotId);
+    const slotName = slot ? slot.displayName : p.slotId;
+    return `
+      <div class="device-row">
+        <div>
+          <div class="device-name" style="font-size: 1.1rem; color: var(--accent);">${escapeHtml(p.plateNum)}</div>
+          <div class="device-meta">Owner: ${escapeHtml(p.owner || "N/A")} | Assigned Slot: ${escapeHtml(slotName)}</div>
+        </div>
+        <div class="device-actions">
+          <button class="btn btn-danger" onclick="removePlate('${escapeHtml(p.plateNum)}')">Revoke</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+};
   
 // =====================================
 // UTILITIES
@@ -1199,8 +1334,9 @@ function updateLastUpdatedChip(slots) {
   document.getElementById("last-updated-chip").textContent = latest ? `Last live data: ${new Date(latest).toLocaleTimeString()}` : "Waiting for live data...";
 }
 function normalizeStatus(s) { return ["occupied", "free", "offline"].includes(s) ? s : "offline"; }
-function showAlert(msg, type) {
-  const box = document.getElementById("devices-alert");
+function showAlert(msg, type, boxId = "devices-alert") {
+  const box = document.getElementById(boxId);
+  if (!box) return;
   box.className = `alert ${type}`; box.textContent = msg; box.hidden = false;
   setTimeout(() => box.hidden = true, 3000);
 }
