@@ -400,6 +400,9 @@ button, input, select { font: inherit; }
         <button class="nav-link active" type="button" data-page="dashboard">
           <span>📊 Dashboard</span>
         </button>
+         <button class="nav-link" type="button" data-page="camera">
+          <span>📹 Camera Feed</span>
+        </button>
         <button class="nav-link" type="button" data-page="devices">
           <span>🔌 Devices</span>
         </button>
@@ -533,6 +536,62 @@ button, input, select { font: inherit; }
           </div>
           <div id="devices-list-container" class="devices-list-container"></div>
         </article>
+      </section>
+
+      <section id="camera-section" class="page-section">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Live Camera Feed</h1>
+            <p class="page-subtitle">Real-time surveillance stream from the parking zone.</p>
+          </div>
+          <div class="header-stack">
+             <div class="status-chip status-chip-light" id="camera-status-chip">Stream Offline</div>
+          </div>
+        </div>
+
+        <div class="card" style="padding: 0; overflow: hidden; display: flex; flex-direction: column;">
+          <!-- Header Area -->
+          <div style="padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+            <div>
+              <h3 class="card-title">Zone 1 Overview</h3>
+              <p class="card-subtitle">Monitoring Slots 1, 2, and 3</p>
+            </div>
+            <button class="btn btn-secondary" onclick="alert('Manual snapshot triggered! (Will be processed by Python backend)')">📸 Take Snapshot</button>
+          </div>
+
+          <!-- Video Player Area -->
+          <div style="background: #0b1114; width: 100%; aspect-ratio: 16/9; position: relative; display: flex; justify-content: center; align-items: center;">
+            
+            <!-- The img src will be dynamically updated by our Python backend's MJPEG stream -->
+            <img id="live-stream-img" src="" alt="" style="width: 100%; height: 100%; object-fit: contain; z-index: 2; position: relative; display: none;">
+            
+            <!-- Loading/Offline Overlay -->
+            <div id="camera-overlay" style="position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #fff; z-index: 1;">
+               <div style="font-size: 40px; margin-bottom: 10px; opacity: 0.8;">📹</div>
+               <p style="margin: 0; font-weight: 700; letter-spacing: 1px; opacity: 0.9;">AWAITING STREAM CONNECTION...</p>
+               <p style="margin: 5px 0 0; font-size: 13px; color: rgba(255,255,255,0.5);">Ensure the Python ALPR backend is running locally.</p>
+            </div>
+          </div>
+
+          <!-- Footer/Logs Area -->
+          <div style="padding: 20px; background: var(--surface-soft);">
+             <h4 style="margin: 0 0 12px; font-size: 0.85rem; font-weight: 800; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em;">Recent ALPR Logs</h4>
+             
+             <!-- Placeholder for future ALPR Logs (To be populated dynamically via Firebase later) -->
+             <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #fff; border: 1px solid var(--border); border-radius: 14px; font-size: 0.9rem;">
+                   <span style="font-family: monospace; font-weight: 700; color: var(--muted);">[14:22:05]</span>
+                   <span>Slot 2: <strong style="color: var(--brand);">GYR-84GDT</strong></span>
+                   <span class="slot-status occupied" style="margin: 0;">UNAUTHORIZED</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #fff; border: 1px solid var(--border); border-radius: 14px; font-size: 0.9rem;">
+                   <span style="font-family: monospace; font-weight: 700; color: var(--muted);">[13:45:12]</span>
+                   <span>Slot 1: <strong style="color: var(--brand);">JQY-12WHE</strong></span>
+                   <span class="slot-status free" style="margin: 0;">AUTHORIZED</span>
+                </div>
+             </div>
+          </div>
+        </div>
       </section>
     </main>
   </div>
