@@ -563,18 +563,16 @@ button, input, select { font: inherit; }
           </div>
 
           <!-- Video Player Area -->
-          <div style="background: #0b1114; width: 100%; aspect-ratio: 16/9; position: relative; display: flex; justify-content: center; align-items: center;">
-            
-           <!-- REPLACE YOUR COMMENTED IMG TAG WITH THIS: -->
-          <img src="http://127.0.0.1:5000/video_feed" style="width: 100%; height: auto; border-radius: var(--radius);" alt="Live Feed" onerror="this.style.display='none'; this.previousElementSibling.style.display='block';" onload="this.previousElementSibling.style.display='none';" />
-            
-            <!-- Loading/Offline Overlay -->
-            <div id="camera-overlay" style="position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #fff; z-index: 1;">
-               <div style="font-size: 40px; margin-bottom: 10px; opacity: 0.8;">📹</div>
-               <p style="margin: 0; font-weight: 700; letter-spacing: 1px; opacity: 0.9;">AWAITING STREAM CONNECTION...</p>
-               <p style="margin: 5px 0 0; font-size: 13px; color: rgba(255,255,255,0.5);">Ensure the Python ALPR backend is running locally.</p>
-            </div>
-          </div>
+         <div class="card" style="padding: 0; overflow: hidden; background: #000; border-radius: var(--radius); min-height: 400px; display: flex; align-items: center; justify-content: center; position: relative;">
+          
+          <img src="http://127.0.0.1:5000/video_feed" style="width: 100%; height: auto; border-radius: var(--radius);" alt="Live Feed" />
+          
+          <!-- NEW SNAPSHOT BUTTON -->
+          <button class="btn btn-primary" id="manual-snapshot-btn" style="position: absolute; bottom: 16px; right: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+            📸 Take Snapshot
+          </button>
+          
+        </div>
 
           <!-- Footer/Logs Area -->
           <div style="padding: 20px; background: var(--surface-soft);">
@@ -734,6 +732,16 @@ function bindUI() {
   document.getElementById("add-plate-btn").addEventListener("click", addPlate);
   document.getElementById("dashboard-location-select").addEventListener("change", handleLocationChange);
 
+
+  document.getElementById("manual-snapshot-btn")?.addEventListener("click", () => {
+    const link = document.createElement("a");
+    link.href = "http://127.0.0.1:5000/snapshot";
+    link.download = `ParkPilot_Manual_Capture_${new Date().getTime()}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  });
+  
   // ✅ ADD THIS HERE
   document.getElementById("auth-form-container")
     .addEventListener("submit", (e) => {
