@@ -1214,42 +1214,45 @@ function initMQTT() {
     APP_STATE.mqttClient.subscribe(`${APP_CONFIG.mqtt.rootTopic}/+/alpr`);
   });
 
-  APP_STATE.mqttClient.on("message", (topic, message) => {
+APP_STATE.mqttClient.on("message", (topic, message) => {
     const parts = topic.split("/");
-    if (parts.length !== 3 || parts[2] !== "status") return;
-    
+    if (parts.length !== 3) return;
+
     const controllerId = parts[1];
-    APP_STATE.liveControllerSeen[controllerId] = Date.now(); // Heartbeat registered!
-// --- ADD THIS BLOCK FOR ALPR LOGS ---
+
+    // Handle ALPR messages
     if (parts[2] === "alpr") {
       try {
         const data = JSON.parse(message.toString());
         const authorizedPlates = loadPlates();
-        
-        // Check if the detected plate matches any authorized plates
         const isAuth = authorizedPlates.some(p => p.plateNum === data.plate);
-        
+
         const logContainer = document.getElementById("alpr-log-container");
-        if (logContainer.querySelector(".empty-state")) logContainer.innerHTML = ""; // clear empty message
-        
+        if (logContainer.querySelector(".empty-state")) logContainer.innerHTML = "";
+
         const time = new Date().toLocaleTimeString('en-US', { hour12: false });
         const statusClass = isAuth ? "free" : "occupied";
         const statusText = isAuth ? "AUTHORIZED" : "UNAUTHORIZED";
-        
+
         const newLog = `
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #fff; border: 1px solid var(--border); border-radius: 14px; font-size: 0.9rem; margin-bottom: 10px;">
              <span style="font-family: monospace; font-weight: 700; color: var(--muted);">[${time}]</span>
              <span>Slot ID ${data.slot_id}: <strong style="color: var(--brand); font-size: 1.1rem;">${data.plate}</strong></span>
              <span class="slot-status ${statusClass}" style="margin: 0;">${statusText}</span>
           </div>`;
-        
+
         logContainer.insertAdjacentHTML('afterbegin', newLog);
-      } catch(e) { console.error(e); }
+      } catch (e) { console.error(e); }
       return;
     }
+
+    // Handle Status messages
+    if (parts[2] !== "status") return;
+
+    APP_STATE.liveControllerSeen[controllerId] = Date.now();
+
     try {
       const payload = JSON.parse(message.toString());
-      // Matches the ESP32 Payload structure: {"device_id":"...", "slots":[{"slot_id":"...", "status":"..."}]}
       if (payload.slots && Array.isArray(payload.slots)) {
         payload.slots.forEach(slot => {
           APP_STATE.liveSlotData[slot.slot_id] = {
@@ -1260,9 +1263,9 @@ function initMQTT() {
         });
       }
       renderDashboard();
-      if(APP_STATE.currentPage === "devices") renderDevicesTable();
+      if (APP_STATE.currentPage === "devices") renderDevicesTable();
     } catch (e) { console.error("MQTT Parsing error", e); }
-  });
+});
 
   const onOffline = () => { document.getElementById("connection-chip").textContent = "MQTT Disconnected"; };
   APP_STATE.mqttClient.on("reconnect", onOffline);
