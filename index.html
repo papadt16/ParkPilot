@@ -1056,6 +1056,16 @@ function removeDevice(slotId) {
   showAlert("Slot removed.", "success");
 }
 
+  window.removeDevice = function(slotId) {
+  if (!window.confirm("Remove this slot?")) return;
+  const devices = loadDevices().filter(d => d.slotId !== slotId);
+  saveDevices(devices);
+  renderLocationSelects();
+  renderDashboard();
+  renderDevicesTable();
+  showAlert("Slot removed.", "success");
+};
+  
 function renameDevice(slotId) {
   const devices = loadDevices();
   const device = devices.find(d => d.slotId === slotId);
@@ -1068,6 +1078,18 @@ function renameDevice(slotId) {
   renderDevicesTable();
 }
 
+  window.renameDevice = function(slotId) {
+  const devices = loadDevices();
+  const device = devices.find(d => d.slotId === slotId);
+  if (!device) return;
+  const nextName = window.prompt("Enter new name:", device.displayName);
+  if (!nextName || !nextName.trim()) return;
+  device.displayName = nextName.trim();
+  saveDevices(devices);
+  renderDashboard();
+  renderDevicesTable();
+};
+  
 // =====================================
 // DASHBOARD RENDERING & CORE LOGIC
 // =====================================
