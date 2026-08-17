@@ -1213,6 +1213,7 @@ function initMQTT() {
   });
 
 APP_STATE.mqttClient.on("message", (topic, message) => {
+    console.log("MQTT RECEIVED:", topic, message.toString());
     const parts = topic.split("/");
     if (parts.length !== 3) return;
 
