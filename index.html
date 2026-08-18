@@ -691,6 +691,32 @@ const APP_CONFIG = {
 const app = initializeApp(APP_CONFIG.firebase.config);
 const auth = getAuth(app);
 
+// =====================================
+// SLOT SIMULATION (hardware down after rain — bridge with a scripted schedule)
+// =====================================
+const SIMULATION_CONFIG = {
+  // Flip this to false to fully disable simulation and go back to real MQTT data.
+  enabled: true,
+
+  // Which slot this simulation takes over. Change this if a different slot needs it.
+  targetSlotId: "KJHGFD2345",
+
+  // How often the "device" wakes up and how long it stays "awake" per cycle.
+  // These only control how fresh/live the slot LOOKS — not its free/occupied value.
+  sleepSeconds: 60,   // was 5s on real hardware, now simulating a 1-minute cycle
+  awakeSeconds: 10,   // stays "awake" (fresh timestamp) for 10s of every cycle
+
+  // The occupancy schedule. Times are 24-hour "HH:MM". Entries must cover the full
+  // 24 hours with no gaps. One entry is allowed to wrap past midnight (e.g. 19:30 -> 08:30).
+  // Edit start/end/status here to change what the dashboard shows and when.
+  schedule: [
+    { start: "19:30", end: "08:30", status: "free" },     // overnight sleep + early morning, empty
+    { start: "08:30", end: "12:00", status: "occupied" },
+    { start: "12:00", end: "12:30", status: "free" },
+    { start: "12:30", end: "16:00", status: "occupied" },
+    { start: "16:00", end: "19:30", status: "free" },
+  ],
+};
   
 const STORAGE_KEYS = {
   devices: "parking_devices_v2",
@@ -706,7 +732,8 @@ const APP_STATE = {
   currentGridPage: 1,
   liveSlotData: {},
   liveControllerSeen: {},
-  mqttClient: null
+  mqttClient: null,
+  simulatedSlot: null
 };
 
 // =====================================
@@ -721,6 +748,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (APP_STATE.currentPage === "dashboard") renderDashboard();
     if (APP_STATE.currentPage === "devices") renderDevicesTable();
   }, 5000);
+
+  // Slot simulation ticks every second so status changes land on time
+  simulationTick();
+  setInterval(simulationTick, 1000);
 });
 
 function bindUI() {
@@ -786,6 +817,62 @@ document.getElementById("auth-password").addEventListener("input", (e) => {
   document.getElementById("sidebar-overlay").addEventListener("click", closeSidebar);
 }
 
+
+  // =====================================
+// SIMULATION ENGINE
+// =====================================
+function timeStrToMinutes(str) {
+  const [h, m] = str.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function isTimeInRange(nowMinutes, startStr, endStr) {
+  const start = timeStrToMinutes(startStr);
+  const end = timeStrToMinutes(endStr);
+  if (start <= end) {
+    return nowMinutes >= start && nowMinutes < end;
+  }
+  // Range wraps past midnight (e.g. 19:30 -> 08:30)
+  return nowMinutes >= start || nowMinutes < end;
+}
+
+function getScheduledStatus(schedule) {
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  for (const entry of schedule) {
+    if (isTimeInRange(nowMinutes, entry.start, entry.end)) return entry.status;
+  }
+  return "free"; // fallback, should never hit if schedule covers 24h
+}
+
+function isSimulatedDeviceAwake(cfg) {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const cyclePos = nowSec % cfg.sleepSeconds;
+  return cyclePos < cfg.awakeSeconds;
+}
+
+let simulatedLastSeen = Date.now();
+
+function simulationTick() {
+  if (!SIMULATION_CONFIG.enabled) return;
+
+  const awake = isSimulatedDeviceAwake(SIMULATION_CONFIG);
+  const status = getScheduledStatus(SIMULATION_CONFIG.schedule);
+
+  // Only refresh the "last seen" timestamp during the awake window,
+  // mimicking a device that briefly wakes, reports, then sleeps again.
+  if (awake) simulatedLastSeen = Date.now();
+
+  APP_STATE.simulatedSlot = {
+    slotId: SIMULATION_CONFIG.targetSlotId,
+    status,
+    lastSeen: simulatedLastSeen,
+  };
+
+  if (APP_STATE.currentPage === "dashboard") renderDashboard();
+  if (APP_STATE.currentPage === "devices") renderDevicesTable();
+}
+  
 // =====================================
 // BASIC AUTHENTICATION (Local Storage Bypass)
 // =====================================
@@ -1094,6 +1181,16 @@ function renameDevice(slotId) {
 // DASHBOARD RENDERING & CORE LOGIC
 // =====================================
 function resolveSlot(device) {
+  // --- SIMULATION OVERRIDE ---
+  // If simulation is enabled and this is the target slot, its status comes
+  // entirely from the schedule/clock, bypassing the real MQTT offline logic.
+  if (SIMULATION_CONFIG.enabled && device.slotId === SIMULATION_CONFIG.targetSlotId) {
+    const sim = APP_STATE.simulatedSlot;
+    if (sim) {
+      return { ...device, status: sim.status, updatedAt: sim.lastSeen };
+    }
+  }
+
   const liveSlot = APP_STATE.liveSlotData[device.slotId];
   const controllerSeenAt = APP_STATE.liveControllerSeen[device.controllerId] || 0;
   const now = Date.now();
