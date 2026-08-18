@@ -701,16 +701,20 @@ const SIMULATION_CONFIG = {
   // Which slot this simulation takes over. Change this if a different slot needs it.
   targetSlotId: "KJHGFD2345",
 
-  // How often the "device" wakes up and how long it stays "awake" per cycle.
-  // These only control how fresh/live the slot LOOKS — not its free/occupied value.
+  // The device "sleeps" (goes OFFLINE, stops reporting entirely) during this window,
+  // mimicking real deep-sleep power saving overnight. Times are 24-hour "HH:MM".
+  // This window is allowed to wrap past midnight.
+  sleepWindow: { start: "19:30", end: "08:30" },
+
+  // How often the "device" wakes up and how long it stays "awake" per cycle,
+  // ONLY while inside the active period (i.e. outside sleepWindow).
   sleepSeconds: 60,   // was 5s on real hardware, now simulating a 1-minute cycle
   awakeSeconds: 10,   // stays "awake" (fresh timestamp) for 10s of every cycle
 
-  // The occupancy schedule. Times are 24-hour "HH:MM". Entries must cover the full
-  // 24 hours with no gaps. One entry is allowed to wrap past midnight (e.g. 19:30 -> 08:30).
-  // Edit start/end/status here to change what the dashboard shows and when.
+  // The occupancy schedule for the ACTIVE period only (must fully cover the time
+  // between sleepWindow.end and sleepWindow.start, no gaps). Edit start/end/status
+  // here to change what the dashboard shows and when, during active hours.
   schedule: [
-    { start: "19:30", end: "08:30", status: "free" },     // overnight sleep + early morning, empty
     { start: "08:30", end: "12:00", status: "occupied" },
     { start: "12:00", end: "12:30", status: "free" },
     { start: "12:30", end: "16:00", status: "occupied" },
@@ -818,7 +822,7 @@ document.getElementById("auth-password").addEventListener("input", (e) => {
 }
 
 
-  // =====================================
+// =====================================
 // SIMULATION ENGINE
 // =====================================
 function timeStrToMinutes(str) {
@@ -836,13 +840,15 @@ function isTimeInRange(nowMinutes, startStr, endStr) {
   return nowMinutes >= start || nowMinutes < end;
 }
 
-function getScheduledStatus(schedule) {
-  const now = new Date();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+function isInSleepWindow(cfg, nowMinutes) {
+  return isTimeInRange(nowMinutes, cfg.sleepWindow.start, cfg.sleepWindow.end);
+}
+
+function getScheduledStatus(schedule, nowMinutes) {
   for (const entry of schedule) {
     if (isTimeInRange(nowMinutes, entry.start, entry.end)) return entry.status;
   }
-  return "free"; // fallback, should never hit if schedule covers 24h
+  return "free"; // fallback, should not hit if schedule fully covers the active period
 }
 
 function isSimulatedDeviceAwake(cfg) {
@@ -851,23 +857,43 @@ function isSimulatedDeviceAwake(cfg) {
   return cyclePos < cfg.awakeSeconds;
 }
 
-let simulatedLastSeen = Date.now();
+let simulatedLastSeen = 0; // 0 = "never reported" so it starts OFFLINE, not stale-free
 
 function simulationTick() {
   if (!SIMULATION_CONFIG.enabled) return;
 
-  const awake = isSimulatedDeviceAwake(SIMULATION_CONFIG);
-  const status = getScheduledStatus(SIMULATION_CONFIG.schedule);
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
-  // Only refresh the "last seen" timestamp during the awake window,
-  // mimicking a device that briefly wakes, reports, then sleeps again.
-  if (awake) simulatedLastSeen = Date.now();
+  if (isInSleepWindow(SIMULATION_CONFIG, nowMinutes)) {
+    // Overnight deep sleep — permanently offline, no cycling, no reporting at all.
+    APP_STATE.simulatedSlot = {
+      slotId: SIMULATION_CONFIG.targetSlotId,
+      status: "offline",
+      updatedAt: simulatedLastSeen || null,
+    };
+  } else {
+    // Active period — device cycles: OFFLINE while "asleep", real status while "awake".
+    const awake = isSimulatedDeviceAwake(SIMULATION_CONFIG);
 
-  APP_STATE.simulatedSlot = {
-    slotId: SIMULATION_CONFIG.targetSlotId,
-    status,
-    lastSeen: simulatedLastSeen,
-  };
+    if (awake) {
+      const status = getScheduledStatus(SIMULATION_CONFIG.schedule, nowMinutes);
+      simulatedLastSeen = Date.now();
+      APP_STATE.simulatedSlot = {
+        slotId: SIMULATION_CONFIG.targetSlotId,
+        status,
+        updatedAt: simulatedLastSeen,
+      };
+    } else {
+      // Between wake cycles — looks offline, exactly like real hardware
+      // that hasn't checked in recently.
+      APP_STATE.simulatedSlot = {
+        slotId: SIMULATION_CONFIG.targetSlotId,
+        status: "offline",
+        updatedAt: simulatedLastSeen || null,
+      };
+    }
+  }
 
   if (APP_STATE.currentPage === "dashboard") renderDashboard();
   if (APP_STATE.currentPage === "devices") renderDevicesTable();
@@ -1187,7 +1213,7 @@ function resolveSlot(device) {
   if (SIMULATION_CONFIG.enabled && device.slotId === SIMULATION_CONFIG.targetSlotId) {
     const sim = APP_STATE.simulatedSlot;
     if (sim) {
-      return { ...device, status: sim.status, updatedAt: sim.lastSeen };
+      return { ...device, status: sim.status, updatedAt: sim.updatedAt };
     }
   }
 
